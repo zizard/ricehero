@@ -129,7 +129,15 @@ button.tog{color:var(--accent);border-color:var(--accent);
 #need .req{flex:1;min-height:0;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;
   overflow:hidden}
 #need .req .hint{margin:2px}
-#need .req .por::after{border:2px solid var(--accent)}
+/* A required runner is its portrait with a chip hung under it: the win rate the teams shown that
+   field it average, each team counting once. Portrait and chip are one piece, framed as one. */
+#need .req .rq{flex:none;width:38px;display:flex;flex-direction:column}
+#need .req .por{border-radius:3px 3px 0 0}
+#need .req .por::after{border:2px solid var(--accent);border-bottom-width:1px;
+  border-radius:3px 3px 0 0}
+#need .req .chip{border:2px solid var(--accent);border-top:0;border-radius:0 0 3px 3px;
+  background:color-mix(in srgb,var(--accent) 10%,var(--panel));font-size:9.5px;font-weight:700;
+  line-height:13px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
 /* The runners the search matches, the ones the most teams field first, dropped down under the
    field while it has focus and laid over the page rather than pushing it down. */
 .drop{position:absolute;top:calc(100% + 2px);left:0;z-index:10;min-width:100%;width:max-content;
@@ -266,7 +274,7 @@ table.teams{border-collapse:collapse;background:var(--panel);
   <img class="pic" src="assets/site/1775601904738243.jpg" alt="">
   <span class="ctl" id="snap"></span>
   <button id="owned">Only teams I can build</button>
-  <button id="nodebuff">Ban debuffers</button>
+  <button id="nodebuff" title="i want all of my runners&#10;to have a chance to win">Ban debuffers</button>
   <span class="ctl spacer" id="count"></span>
 </div>
 
@@ -578,12 +586,20 @@ function renderDrop(){
   if (on) on.scrollIntoView({block: 'nearest'});
 }
 
-function renderNeed(){
-  renderDrop();
+/* The required runners, each over the plain average of the win rates of the teams shown that
+   field it. It is drawn with the teams, since it is about the teams the filters leave. */
+function renderReq(list){
   $('req').innerHTML = state.need.length
-    ? state.need.map(card => `<span class="por" data-unneed="${card}"
-        title="${esc(runnerName(card))} · click to stop requiring"
-      >${face(card)}</span>`).join('')
+    ? state.need.map(card => {
+        const fielding = list.filter(team => team.cards.has(card));
+        const mean = fielding.length
+          ? fielding.reduce((total, team) => total + team.rate, 0) / fielding.length : null;
+        return `<span class="rq"><span class="por" data-unneed="${card}"
+            title="${esc(runnerName(card))} · click to stop requiring">${face(card)}</span>`
+          + `<span class="chip" title="Average win rate of the ${fielding.length} teams shown `
+          + `that field this runner, each team counted once">`
+          + `${mean === null ? '&ndash;' : pct1(mean) + '%'}</span></span>`;
+      }).join('')
     : '<span class="hint">Pick a runner from the search to require it.</span>';
 }
 
@@ -617,6 +633,7 @@ function renderTeams(){
   $('count').innerHTML = `<b>${list.length.toLocaleString('en-US')}</b>`
     + ` of ${ALL.length.toLocaleString('en-US')} teams`;
   $('more').disabled = state.shown >= list.length;
+  renderReq(list);
 }
 
 function renderBar(){
@@ -633,7 +650,7 @@ function renderBar(){
 
 function render(){
   renderBar();
-  renderNeed();
+  renderDrop();
   renderMissing();
   renderTeams();
 }
@@ -657,7 +674,7 @@ function setNeed(list){
   state.need = list;
   state.shown = PAGE;
   remember();
-  renderNeed();
+  renderDrop();
   renderTeams();
 }
 
