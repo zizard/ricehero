@@ -210,6 +210,7 @@ table.teams{border-collapse:collapse;background:var(--panel);
   <img class="pic" src="assets/site/1775601904738243.jpg" alt="">
   <span class="ctl" id="snap"></span>
   <button id="owned">Only teams I can build</button>
+  <button id="nodebuff">Ban debuffers</button>
   <span class="ctl spacer" id="count"></span>
 </div>
 
@@ -280,6 +281,8 @@ function teamOf(row, index){
   const [lower, upper] = wilson(wins, n);
   return {
     index, wins, n, rate: n ? wins / n : 0, lower, upper, memberWins, runners,
+    // Whether any of the three races as a debuffer, which the API marks as style 6.
+    debuff: runners.some(r => r.style === 6),
   };
 }
 
@@ -288,13 +291,13 @@ function teamOf(row, index){
 let ALL = [];
 let MISSING = new Set();            // support cards
 let MISSING_RUNNERS = new Set();    // runner cards
-const state = {sort: 'lower', owned: false, shown: PAGE, open: new Set()};
+const state = {sort: 'lower', owned: false, noDebuff: false, shown: PAGE, open: new Set()};
 
 function remember(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       missing: [...MISSING], missingRunners: [...MISSING_RUNNERS],
-      sort: state.sort, owned: state.owned}));
+      sort: state.sort, owned: state.owned, noDebuff: state.noDebuff}));
   } catch {}
 }
 
@@ -307,6 +310,7 @@ function recall(){
   MISSING_RUNNERS = ids(saved.missingRunners);
   if (['lower', 'rate', 'n'].includes(saved.sort)) state.sort = saved.sort;
   state.owned = saved.owned === true;
+  state.noDebuff = saved.noDebuff === true;
 }
 
 /* ---- which teams, in what order -------------------------------------------------------------- */
@@ -324,7 +328,8 @@ const buildable = team => team.runners.every(r => !MISSING_RUNNERS.has(r.card)
   && r.sup.reduce((count, [id]) => count + (MISSING.has(id) ? 1 : 0), 0) <= 1);
 
 function matching(){
-  return (state.owned ? ALL.filter(buildable) : ALL).slice().sort(SORTS[state.sort]);
+  return ALL.filter(team => (!state.owned || buildable(team)) && (!state.noDebuff || !team.debuff))
+    .sort(SORTS[state.sort]);
 }
 
 /* ---- drawing -------------------------------------------------------------------------------- */
@@ -494,6 +499,7 @@ function renderBar(){
   $('snap').innerHTML = `<b>${esc(META.course)}</b> · ${esc(META.snapshotId)}`;
   $('snap').title = `Pulled ${META.pulledAt}, ${META.teams} teams from ${META.owners} players`;
   $('owned').classList.toggle('tog', state.owned);
+  $('nodebuff').classList.toggle('tog', state.noDebuff);
   for (const th of document.querySelectorAll('th[data-sort]'))
     th.classList.toggle('on', th.dataset.sort === state.sort);
 }
@@ -514,13 +520,14 @@ function toggleCard(set, id){
 }
 
 function bind(){
-  $('owned').addEventListener('click', () => {
-    state.owned = !state.owned;
-    state.shown = PAGE;
-    remember();
-    renderBar();
-    renderTeams();
-  });
+  for (const [id, key] of [['owned', 'owned'], ['nodebuff', 'noDebuff']])
+    $(id).addEventListener('click', () => {
+      state[key] = !state[key];
+      state.shown = PAGE;
+      remember();
+      renderBar();
+      renderTeams();
+    });
   $('more').addEventListener('click', () => {
     state.shown += PAGE;
     renderTeams();
