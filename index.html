@@ -11,6 +11,7 @@
   --accent:#33527a; --hi:#0f57ab; --ref:#3a404a;
   --warn:#8a5a00; --err:#b3261e; --ok:#1f6b3a; --pip:#b07d16;
   --gold:#412c02; --gold-bg:#f9edcf; --aptgold:#96690a; --uniq:#48205e; --uniq-bg:#efe3f8; --sk-ink:#05070a;
+  --cross:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2 2L10 10M10 2L2 10' stroke='%23000' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
   /* The red line a banned card is struck through with. */
   --strike:linear-gradient(to top right,transparent calc(50% - 1.2px),var(--err) calc(50% - 1.2px),
     var(--err) calc(50% + 1.2px),transparent calc(50% + 1.2px));
@@ -20,6 +21,17 @@
 body{background:var(--bg);color:var(--ink);font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif;margin:0;padding:8px 17px 22px}
 h2.sec{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
   color:var(--muted);margin:10px 1px 5px}
+/* A heading with the one button that section has, on the same line. The button is no taller than
+   the heading's line, so this heading sits level with the ones beside it. */
+.sechead{display:flex;align-items:center;gap:8px;margin:10px 1px 5px}
+.sechead h2.sec{margin:0}
+.sechead button{font-size:10px;font-weight:700;letter-spacing:.04em;line-height:14px;
+  padding:1px 6px}
+/* Both words sit in the one place and only one is shown, so the button is the wider word's width
+   whichever it says. */
+button.two{display:inline-grid}
+button.two > span{grid-area:1/1}
+button.two:not(.alt) .b,button.two.alt .a{visibility:hidden}
 .hint{font-size:11.5px;color:var(--muted);margin:2px 1px 0}
 
 /* ---- the bar ------------------------------------------------------------------------------- */
@@ -98,13 +110,57 @@ button.tog{color:var(--accent);border-color:var(--accent);
 /* ---- the cards the account does not have --------------------------------------------------- */
 /* Runners on the left, support cards on the right, each box the same height whatever it holds, so
    marking a card never moves the teams below. */
-.lists{display:grid;grid-template-columns:1fr 2fr;gap:10px}
+/* The shares are held whatever the boxes hold: a column may not widen to fit a line of portraits
+   that does not wrap, which is what the search's line is. */
+.lists{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr) minmax(0,5fr);gap:10px}
+.lists > div{min-width:0}
 .box{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:5px 6px;
-  height:118px;overflow-y:scroll}
+  height:124px;overflow-y:scroll}
 .box .sup,.box .pors{display:flex;flex-wrap:wrap;gap:3px;margin:0}
 .box .sup .c{width:38px;flex:none}
 .box .por{width:38px;height:38px}
 .box .hint{margin:4px 2px}
+/* Required runners: the runners required, and under them, at the foot of the box, the search. The
+   runners take whatever height the search leaves. The box is not clipped, so
+   the list the search drops down can lie over what is below it; what is in the box keeps inside
+   it by itself. */
+#need{overflow:visible;display:flex;flex-direction:column;gap:5px}
+.qwrap{position:relative;flex:none}
+#need .req{flex:1;min-height:0;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;
+  overflow:hidden}
+#need .req .hint{margin:2px}
+#need .req .por::after{border:2px solid var(--accent)}
+/* The runners the search matches, the ones the most teams field first, dropped down under the
+   field while it has focus and laid over the page rather than pushing it down. */
+.drop{position:absolute;top:calc(100% + 2px);left:0;z-index:10;min-width:100%;width:max-content;
+  max-width:340px;max-height:260px;overflow-y:auto;background:var(--panel);
+  border:1px solid var(--ref);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.14);padding:2px}
+.drop[hidden]{display:none}
+.drop .opt{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:3px;
+  cursor:pointer;font-size:11.5px}
+.drop .opt:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.drop .opt.on{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.drop .opt .por{width:22px;height:22px}
+.drop .opt .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.drop .opt .nm small{font-size:10px;color:var(--muted);margin-right:4px}
+.drop .opt .n{flex:none;min-width:4ch;text-align:right;font-size:10.5px;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.drop .none{padding:4px 6px;font-size:11.5px;color:var(--muted)}
+.por[data-unneed]{cursor:pointer}
+.por[data-unneed]:hover::after{border-color:var(--accent);border-width:2px}
+input[type=search]{font:inherit;font-size:12px;background:var(--panel);color:var(--ink);
+  border:1px solid var(--ref);border-radius:4px;padding:3px 8px;width:100%;flex:none}
+input[type=search]:focus{outline:none;border-color:var(--accent)}
+/* The field's clear mark is the page's own, drawn at its right end all the time: the browser's
+   comes and goes with what is typed and whether the field has focus. */
+input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;
+  display:none}
+.qwrap input[type=search]{padding-right:24px}
+.qwrap .clr{position:absolute;right:7px;top:50%;width:11px;height:11px;margin-top:-5.5px;
+  padding:0;border:0;border-radius:0;cursor:pointer;background:var(--muted);
+  -webkit-mask:var(--cross) center/100% 100% no-repeat;
+  mask:var(--cross) center/100% 100% no-repeat}
+.qwrap .clr:not(:disabled):hover{background:var(--err)}
 
 /* ---- teams: one row each, the three runners side by side --------------------------------- */
 /* Every runner is the same width, so the team column is as wide as three of them and the gaps
@@ -215,6 +271,16 @@ table.teams{border-collapse:collapse;background:var(--panel);
 </div>
 
 <div class="lists">
+  <div><div class="sechead"><h2 class="sec">Required runners</h2>
+      <button class="two" id="needany"><span class="a">ALL</span><span class="b">ANY</span></button>
+    </div><div class="box" id="need">
+    <div class="req" id="req"></div>
+    <div class="qwrap">
+      <input type="search" id="nq" placeholder="search runners" autocomplete="off" spellcheck="false">
+      <button class="clr" id="nqx" title="Clear the search" aria-label="Clear the search"></button>
+      <div class="drop" id="drop" hidden></div>
+    </div>
+  </div></div>
   <div><h2 class="sec">Banned runners</h2><div class="box" id="rmissing"></div></div>
   <div><h2 class="sec">Banned support cards</h2><div class="box" id="missing"></div></div>
 </div>
@@ -251,6 +317,7 @@ const NAME_TAIL = 8;
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pct1 = v => (v * 100).toFixed(1);
+const norm = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const $ = id => document.getElementById(id);
 
 /* ---- one team, out of its baked row --------------------------------------------------------- */
@@ -283,6 +350,7 @@ function teamOf(row, index){
     index, wins, n, rate: n ? wins / n : 0, lower, upper, memberWins, runners,
     // Whether any of the three races as a debuffer, which the API marks as style 6.
     debuff: runners.some(r => r.style === 6),
+    cards: new Set(runners.map(r => r.card)),
   };
 }
 
@@ -291,13 +359,17 @@ function teamOf(row, index){
 let ALL = [];
 let MISSING = new Set();            // support cards
 let MISSING_RUNNERS = new Set();    // runner cards
-const state = {sort: 'lower', owned: false, noDebuff: false, shown: PAGE, open: new Set()};
+let RUNNERS = [];                   // every runner card the teams field, most-fielded first
+const state = {sort: 'lower', owned: false, noDebuff: false, need: [], needAny: false, nq: '',
+               drop: false, dropAt: 0, shown: PAGE,
+               open: new Set()};
 
 function remember(){
   try {
     localStorage.setItem(STORE, JSON.stringify({
       missing: [...MISSING], missingRunners: [...MISSING_RUNNERS],
-      sort: state.sort, owned: state.owned, noDebuff: state.noDebuff}));
+      need: state.need, needAny: state.needAny, sort: state.sort, owned: state.owned,
+      noDebuff: state.noDebuff}));
   } catch {}
 }
 
@@ -311,6 +383,8 @@ function recall(){
   if (['lower', 'rate', 'n'].includes(saved.sort)) state.sort = saved.sort;
   state.owned = saved.owned === true;
   state.noDebuff = saved.noDebuff === true;
+  state.need = [...ids(saved.need)];
+  state.needAny = saved.needAny === true;
 }
 
 /* ---- which teams, in what order -------------------------------------------------------------- */
@@ -327,8 +401,15 @@ const SORTS = {
 const buildable = team => team.runners.every(r => !MISSING_RUNNERS.has(r.card)
   && r.sup.reduce((count, [id]) => count + (MISSING.has(id) ? 1 : 0), 0) <= 1);
 
+/* The required runners: a team fields all of them, or under ANY at least one. With none required
+   every team passes either way. */
+const fields = team => !state.need.length || (state.needAny
+  ? state.need.some(card => team.cards.has(card))
+  : state.need.every(card => team.cards.has(card)));
+
 function matching(){
-  return ALL.filter(team => (!state.owned || buildable(team)) && (!state.noDebuff || !team.debuff))
+  return ALL.filter(team => (!state.owned || buildable(team)) && (!state.noDebuff || !team.debuff)
+      && fields(team))
     .sort(SORTS[state.sort]);
 }
 
@@ -463,6 +544,49 @@ function teamRow(team){
   </tr>`;
 }
 
+function runnerName(card){
+  const named = CARDS[card] || ['', 'Chara ' + card];
+  return (named[0] + ' ' + named[1]).trim();
+}
+
+// Every word of the query starts a word of the name, or failing that is somewhere in it.
+const nameMatch = (hay, query) => query.split(' ').every(t =>
+  hay.split(' ').some(w => w.startsWith(t)) || hay.includes(t));
+
+// The runners the search offers: every one not already required that the query matches.
+function offered(){
+  const query = norm(state.nq);
+  return RUNNERS.filter(r => !state.need.includes(r.card) && (!query || nameMatch(r.hay, query)));
+}
+
+function renderDrop(){
+  const drop = $('drop');
+  drop.hidden = !state.drop;
+  if (!state.drop) return;
+  const list = offered();
+  state.dropAt = Math.max(0, Math.min(state.dropAt, list.length - 1));
+  drop.innerHTML = list.length
+    ? list.map((r, i) => {
+        const named = CARDS[r.card] || ['', 'Chara ' + r.card];
+        return `<div class="opt${i === state.dropAt ? ' on' : ''}" data-need="${r.card}">`
+          + `<span class="por">${face(r.card)}</span>`
+          + `<span class="nm"><small>${esc(named[0])}</small>${esc(named[1])}</span>`
+          + `<span class="n" title="Teams fielding this runner">${r.n}</span></div>`;
+      }).join('')
+    : '<div class="none">No runner by that name.</div>';
+  const on = drop.querySelector('.opt.on');
+  if (on) on.scrollIntoView({block: 'nearest'});
+}
+
+function renderNeed(){
+  renderDrop();
+  $('req').innerHTML = state.need.length
+    ? state.need.map(card => `<span class="por" data-unneed="${card}"
+        title="${esc(runnerName(card))} · click to stop requiring"
+      >${face(card)}</span>`).join('')
+    : '<span class="hint">Pick a runner from the search to require it.</span>';
+}
+
 function renderMissing(){
   const cards = [...MISSING_RUNNERS].sort((a, b) => a - b);
   $('rmissing').innerHTML = cards.length
@@ -500,12 +624,16 @@ function renderBar(){
   $('snap').title = `Pulled ${META.pulledAt}, ${META.teams} teams from ${META.owners} players`;
   $('owned').classList.toggle('tog', state.owned);
   $('nodebuff').classList.toggle('tog', state.noDebuff);
+  $('needany').classList.toggle('alt', state.needAny);
+  $('needany').title = state.needAny ? 'A team fields at least one of the required runners'
+    : 'A team fields every required runner';
   for (const th of document.querySelectorAll('th[data-sort]'))
     th.classList.toggle('on', th.dataset.sort === state.sort);
 }
 
 function render(){
   renderBar();
+  renderNeed();
   renderMissing();
   renderTeams();
 }
@@ -519,7 +647,58 @@ function toggleCard(set, id){
   renderTeams();
 }
 
+// A runner picked from the search: required, and the search left as it was, so the list it
+// found stays open for the next pick.
+function requireRunner(card){
+  setNeed([...state.need, card]);
+}
+
+function setNeed(list){
+  state.need = list;
+  state.shown = PAGE;
+  remember();
+  renderNeed();
+  renderTeams();
+}
+
 function bind(){
+  $('needany').addEventListener('click', () => {
+    state.needAny = !state.needAny;
+    state.shown = PAGE;
+    remember();
+    renderBar();
+    renderTeams();
+  });
+  // The list is open while the field has focus. Pressing on it does not take the focus away, so
+  // a runner can be picked from it with the pointer as well as with the arrows and Enter.
+  const nq = $('nq');
+  const openDrop = open => { state.drop = open; renderDrop(); };
+  nq.addEventListener('focus', () => openDrop(true));
+  nq.addEventListener('blur', () => openDrop(false));
+  nq.addEventListener('input', () => {
+    state.nq = nq.value;
+    state.dropAt = 0;
+    openDrop(true);
+  });
+  nq.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+      e.preventDefault();
+      state.dropAt += e.key === 'ArrowDown' ? 1 : -1;
+      openDrop(true);
+    } else if (e.key === 'Enter'){
+      const pick = offered()[state.dropAt];
+      if (pick) requireRunner(pick.card);
+    } else if (e.key === 'Escape') nq.blur();
+  });
+  $('drop').addEventListener('pointerdown', e => e.preventDefault());
+  // Clearing is the end of a search: the field is emptied and let go of, which closes the list.
+  $('nqx').addEventListener('click', () => {
+    nq.value = '';
+    state.nq = '';
+    state.dropAt = 0;
+    nq.blur();
+    openDrop(false);
+  });
   for (const [id, key] of [['owned', 'owned'], ['nodebuff', 'noDebuff']])
     $(id).addEventListener('click', () => {
       state[key] = !state[key];
@@ -540,6 +719,16 @@ function bind(){
       remember();
       renderBar();
       renderTeams();
+      return;
+    }
+    const need = e.target.closest('[data-need]');
+    if (need){
+      requireRunner(Number(need.dataset.need));
+      return;
+    }
+    const unneed = e.target.closest('[data-unneed]');
+    if (unneed){
+      setNeed(state.need.filter(card => card !== Number(unneed.dataset.unneed)));
       return;
     }
     const card = e.target.closest('[data-sup]');
@@ -563,6 +752,11 @@ function bind(){
 
 function boot(){
   ALL = TEAMS.map(teamOf);
+  const fielded = new Map();
+  for (const team of ALL)
+    for (const card of team.cards) fielded.set(card, (fielded.get(card) || 0) + 1);
+  RUNNERS = [...fielded].map(([card, n]) => ({card, n, hay: norm(runnerName(card))}))
+    .sort((a, b) => b.n - a.n);
   recall();
   bind();
   render();
