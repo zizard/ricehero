@@ -129,19 +129,23 @@ button.tog{color:var(--accent);border-color:var(--accent);
 #need .req{flex:1;min-height:0;display:flex;flex-wrap:wrap;gap:3px;align-content:flex-start;
   overflow:hidden}
 #need .req .hint{margin:2px}
-/* A required runner is its portrait with a chip hung under it: the win rate the teams shown that
-   field it average, each team counting once. Portrait and chip are one piece, framed as one. */
+/* A required runner is its portrait with two chips hung under it, averaged over the teams shown
+   that field it, each team counting once: the team's win rate, then the runner's own. Portrait and
+   chips are one piece, framed as one; the runner's own is on the plain ground. */
 #need .req .rq{flex:none;width:38px;display:flex;flex-direction:column}
 #need .req .por{border-radius:3px 3px 0 0}
 #need .req .por::after{border:2px solid var(--accent);border-bottom-width:1px;
   border-radius:3px 3px 0 0}
-#need .req .chip{border:2px solid var(--accent);border-top:0;border-radius:0 0 3px 3px;
+#need .req .chip{border:2px solid var(--accent);border-top:0;border-bottom:0;
   background:color-mix(in srgb,var(--accent) 10%,var(--panel));font-size:9.5px;font-weight:700;
   line-height:13px;text-align:center;font-variant-numeric:tabular-nums;white-space:nowrap}
+#need .req .chip + .chip{border-radius:0 0 3px 3px;background:var(--panel);
+  border-top:1px solid color-mix(in srgb,var(--accent) 35%,transparent);
+  border-bottom:2px solid var(--accent)}
 /* The runners the search matches, the ones the most teams field first, dropped down under the
    field while it has focus and laid over the page rather than pushing it down. */
 .drop{position:absolute;top:calc(100% + 2px);left:0;z-index:10;min-width:100%;width:max-content;
-  max-width:340px;max-height:260px;overflow-y:auto;background:var(--panel);
+  max-width:400px;max-height:260px;overflow-y:auto;background:var(--panel);
   border:1px solid var(--ref);border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.14);padding:2px}
 .drop[hidden]{display:none}
 .drop .opt{display:flex;align-items:center;gap:6px;padding:2px 4px;border-radius:3px;
@@ -151,6 +155,11 @@ button.tog{color:var(--accent);border-color:var(--accent);
 .drop .opt .por{width:22px;height:22px}
 .drop .opt .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .drop .opt .nm small{font-size:10px;color:var(--muted);margin-right:4px}
+/* The figures after the name, each in a column of its own width, right-aligned, so they line up
+   down the list: teams, the team win rate, the runner's own. */
+.drop .opt .f{flex:none;text-align:right;font-size:10.5px;font-variant-numeric:tabular-nums}
+.drop .opt .f.tw{width:6ch;color:var(--ink);font-weight:700}
+.drop .opt .f.rw{width:6ch;color:var(--ink)}
 .drop .opt .n{flex:none;min-width:4ch;text-align:right;font-size:10.5px;color:var(--muted);
   font-variant-numeric:tabular-nums}
 .drop .none{padding:4px 6px;font-size:11.5px;color:var(--muted)}
@@ -359,6 +368,8 @@ function teamOf(row, index){
     // Whether any of the three races as a debuffer, which the API marks as style 6.
     debuff: runners.some(r => r.style === 6),
     cards: new Set(runners.map(r => r.card)),
+    // Each runner's own win rate in this team, by card.
+    personal: new Map(runners.map((r, slot) => [r.card, n ? memberWins[slot] / n : 0])),
   };
 }
 
@@ -415,11 +426,29 @@ const fields = team => !state.need.length || (state.needAny
   ? state.need.some(card => team.cards.has(card))
   : state.need.every(card => team.cards.has(card)));
 
+// Everything but the required runners: the bans and the debuffer toggle.
+const passes = team => (!state.owned || buildable(team)) && (!state.noDebuff || !team.debuff);
+
 function matching(){
-  return ALL.filter(team => (!state.owned || buildable(team)) && (!state.noDebuff || !team.debuff)
-      && fields(team))
-    .sort(SORTS[state.sort]);
+  return ALL.filter(team => passes(team) && fields(team)).sort(SORTS[state.sort]);
 }
+
+/* For every runner the teams in `pool` field: how many of them do, and the sums of those teams'
+   win rates and of that runner's own, so each average counts a team once. */
+function tally(pool){
+  const out = new Map();
+  for (const team of pool)
+    for (const [card, own] of team.personal){
+      const t = out.get(card) || {n: 0, team: 0, own: 0};
+      t.n += 1;
+      t.team += team.rate;
+      t.own += own;
+      out.set(card, t);
+    }
+  return out;
+}
+
+const avg = (t, key) => t && t.n ? pct1(t[key] / t.n) + '%' : '&ndash;';
 
 /* ---- drawing -------------------------------------------------------------------------------- */
 
@@ -561,10 +590,18 @@ function runnerName(card){
 const nameMatch = (hay, query) => query.split(' ').every(t =>
   hay.split(' ').some(w => w.startsWith(t)) || hay.includes(t));
 
-// The runners the search offers: every one not already required that the query matches.
+/* The runners the search offers: every one not already required that the query matches, with the
+   figures its chips would show if it were required. Under ALL that is over the teams shown, which
+   it would narrow; under ANY, over every team the other filters leave that fields it. The ones
+   with the most such teams come first. */
 function offered(){
   const query = norm(state.nq);
-  return RUNNERS.filter(r => !state.need.includes(r.card) && (!query || nameMatch(r.hay, query)));
+  const pool = state.needAny || !state.need.length
+    ? ALL.filter(passes) : ALL.filter(team => passes(team) && fields(team));
+  const counts = tally(pool);
+  return RUNNERS.filter(r => !state.need.includes(r.card) && (!query || nameMatch(r.hay, query)))
+    .map(r => ({...r, t: counts.get(r.card)}))
+    .sort((a, b) => (b.t ? b.t.n : 0) - (a.t ? a.t.n : 0) || b.n - a.n);
 }
 
 function renderDrop(){
@@ -579,7 +616,12 @@ function renderDrop(){
         return `<div class="opt${i === state.dropAt ? ' on' : ''}" data-need="${r.card}">`
           + `<span class="por">${face(r.card)}</span>`
           + `<span class="nm"><small>${esc(named[0])}</small>${esc(named[1])}</span>`
-          + `<span class="n" title="Teams fielding this runner">${r.n}</span></div>`;
+          + `<span class="n" title="Teams fielding this runner that the filters leave">`
+          + `${r.t ? r.t.n : 0}</span>`
+          + `<span class="f tw" title="Team win rate, averaged over those teams">`
+          + `${avg(r.t, 'team')}</span>`
+          + `<span class="f rw" title="Personal win rate: this runner's own wins, averaged over `
+          + `those teams">${avg(r.t, 'own')}</span></div>`;
       }).join('')
     : '<div class="none">No runner by that name.</div>';
   const on = drop.querySelector('.opt.on');
@@ -589,16 +631,17 @@ function renderDrop(){
 /* The required runners, each over the plain average of the win rates of the teams shown that
    field it. It is drawn with the teams, since it is about the teams the filters leave. */
 function renderReq(list){
+  const counts = tally(list);
   $('req').innerHTML = state.need.length
     ? state.need.map(card => {
-        const fielding = list.filter(team => team.cards.has(card));
-        const mean = fielding.length
-          ? fielding.reduce((total, team) => total + team.rate, 0) / fielding.length : null;
+        const t = counts.get(card);
+        const over = `averaged over the ${t ? t.n : 0} teams shown that field this runner, `
+          + 'each team counted once';
         return `<span class="rq"><span class="por" data-unneed="${card}"
             title="${esc(runnerName(card))} · click to stop requiring">${face(card)}</span>`
-          + `<span class="chip" title="Average win rate of the ${fielding.length} teams shown `
-          + `that field this runner, each team counted once">`
-          + `${mean === null ? '&ndash;' : pct1(mean) + '%'}</span></span>`;
+          + `<span class="chip" title="Team win rate, ${over}">${avg(t, 'team')}</span>`
+          + `<span class="chip" title="Personal win rate: this runner's own wins, ${over}"`
+          + `>${avg(t, 'own')}</span></span>`;
       }).join('')
     : '<span class="hint">Pick a runner from the search to require it.</span>';
 }
