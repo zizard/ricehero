@@ -45,10 +45,14 @@ button.two:not(.alt) .b,button.two.alt .a{visibility:hidden}
 .controls{display:flex;gap:13px;align-items:center;flex-wrap:wrap;background:var(--panel);
   border:1px solid var(--line);border-radius:4px;padding:8px 12px;margin:2px 0 8px}
 /* The picture at the start of the bar runs its whole height, edge to edge: the bar's padding is
-   taken back on three sides, and all four corners take the bar's inner rounding. The bar's
-   content is a 26px button, so the bar inside its border is 42px. */
-.controls .pic{flex:none;width:42px;height:42px;margin:-8px 0 -8px -12px;object-fit:cover;
+   taken back on three sides, and all four corners take the bar's inner rounding. Beside it are two
+   lines, an 18px line of text directly over a row of 26px buttons, so the bar inside its border
+   is 60px. */
+.controls .pic{flex:none;width:60px;height:60px;margin:-8px 0 -8px -12px;object-fit:cover;
   border-radius:3px;display:block}
+.controls .lines{flex:1;min-width:0;display:flex;flex-direction:column}
+.controls .intro{font-size:12px;line-height:18px}
+.controls .row{display:flex;gap:13px;align-items:center;flex-wrap:wrap;min-height:26px}
 .ctl{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
 .ctl b{color:var(--ink)}
 .spacer{margin-left:auto}
@@ -305,10 +309,15 @@ table.teams{border-collapse:collapse;background:var(--panel);
 
 <div class="controls">
   <img class="pic" src="assets/site/1775601904738243.jpg" alt="">
-  <span class="ctl" id="snap"></span>
-  <button id="nodebuff" title="i want all of my runners&#10;to have a chance to win">Ban debuffers</button>
-  <span class="ctl spacer" id="count"></span>
-  <button class="two" id="reset"><span class="a">Reset</span><span class="b">Confirm</span></button>
+  <div class="lines">
+    <div class="intro">This is a hakuraku filter interface.</div>
+    <div class="row">
+      <span class="ctl" id="snap"></span>
+      <button id="nodebuff" title="i want all of my runners&#10;to have a chance to win">Ban debuffers</button>
+      <span class="ctl spacer" id="count"></span>
+      <button class="two" id="reset"><span class="a">Reset</span><span class="b">Confirm</span></button>
+    </div>
+  </div>
 </div>
 
 <div class="lists">
