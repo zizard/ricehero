@@ -53,6 +53,11 @@ button.two:not(.alt) .b,button.two.alt .a{visibility:hidden}
 .controls .lines{flex:1;min-width:0;display:flex;flex-direction:column}
 .controls .intro{font-size:12px;line-height:18px}
 .controls .row{display:flex;gap:13px;align-items:center;flex-wrap:wrap;min-height:26px}
+/* A number typed in the bar, as tall as the buttons beside it. */
+#maxsp{font:inherit;font-size:12px;background:var(--panel);color:var(--ink);
+  border:1px solid var(--ref);border-radius:4px;padding:3px 6px;width:7ch;text-align:right;
+  font-variant-numeric:tabular-nums}
+#maxsp:focus{outline:none;border-color:var(--accent)}
 .ctl{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:6px}
 .ctl b{color:var(--ink)}
 .spacer{margin-left:auto}
@@ -314,6 +319,8 @@ table.teams{border-collapse:collapse;background:var(--panel);
     <div class="row">
       <span class="ctl" id="snap"></span>
       <button id="nodebuff" title="i want all of my runners&#10;to have a chance to win">Ban debuffers</button>
+      <label class="ctl">Max SP: <input type="text" id="maxsp" inputmode="numeric"
+        autocomplete="off" spellcheck="false"></label>
       <span class="ctl spacer" id="count"></span>
       <button class="two" id="reset"><span class="a">Reset</span><span class="b">Confirm</span></button>
     </div>
@@ -420,7 +427,7 @@ let MISSING = new Set();            // support cards
 let MISSING_RUNNERS = new Set();    // runner cards
 let RUNNERS = [];                   // every runner card the teams field, most-fielded first
 // Everything the page keeps, as it is on a first visit and after Reset.
-const SETTINGS = () => ({sort: 'rate', debuffBans: false, noDebuff: false,
+const SETTINGS = () => ({sort: 'rate', debuffBans: false, noDebuff: false, maxSp: null,
                          need: [], needAny: false, needOn: true, runnerBansOn: true,
                          cardBansOn: true});
 const state = {...SETTINGS(), nq: '', drop: false, dropAt: 0, shown: PAGE, open: new Set()};
@@ -430,7 +437,8 @@ function remember(){
     localStorage.setItem(STORE, JSON.stringify({
       missing: [...MISSING], missingRunners: [...MISSING_RUNNERS],
       need: state.need, needAny: state.needAny, sort: state.sort,
-      debuffBans: state.debuffBans, noDebuff: state.noDebuff, needOn: state.needOn,
+      debuffBans: state.debuffBans, noDebuff: state.noDebuff, maxSp: state.maxSp,
+      needOn: state.needOn,
       runnerBansOn: state.runnerBansOn, cardBansOn: state.cardBansOn}));
   } catch {}
 }
@@ -445,6 +453,7 @@ function recall(){
   if (['rate', 'n'].includes(saved.sort)) state.sort = saved.sort;
   state.debuffBans = saved.debuffBans === true;
   state.noDebuff = saved.noDebuff === true;
+  state.maxSp = Number.isInteger(saved.maxSp) && saved.maxSp >= 0 ? saved.maxSp : null;
   state.need = [...ids(saved.need)];
   state.needAny = saved.needAny === true;
   state.needOn = saved.needOn !== false;
@@ -478,7 +487,9 @@ const fields = team => !needing() || (state.needAny
   : state.need.every(card => team.cards.has(card)));
 
 // Everything but the required runners: the bans and the debuffer toggle.
-const passes = team => buildable(team) && (!state.noDebuff || !team.debuff);
+// A ceiling on the skill points any one runner of the team spent, itself allowed; none when empty.
+const underSp = team => state.maxSp === null || team.runners.every(r => r.sp <= state.maxSp);
+const passes = team => buildable(team) && (!state.noDebuff || !team.debuff) && underSp(team);
 
 function matching(){
   return ALL.filter(team => passes(team) && fields(team)).sort(SORTS[state.sort]);
@@ -747,6 +758,8 @@ function renderBar(){
   }
   $('debuffbans').classList.toggle('tog', state.debuffBans);
   $('nodebuff').classList.toggle('tog', state.noDebuff);
+  // Left alone while it is being typed in, so what is typed is never rewritten under the cursor.
+  if (document.activeElement !== $('maxsp')) $('maxsp').value = state.maxSp ?? '';
   for (const side of $('needany').children)
     side.classList.toggle('tog', (side.dataset.any === '1') === state.needAny);
   for (const th of document.querySelectorAll('th[data-sort]'))
@@ -805,6 +818,15 @@ function resetAll(){
 }
 
 function bind(){
+  // Digits only; anything else typed is dropped. Empty is no ceiling.
+  $('maxsp').addEventListener('input', e => {
+    const digits = e.target.value.replace(/[^0-9]/g, '');
+    if (digits !== e.target.value) e.target.value = digits;
+    state.maxSp = digits === '' ? null : Number(digits);
+    state.shown = PAGE;
+    remember();
+    renderTeams();
+  });
   $('reset').addEventListener('click', () => {
     const button = $('reset');
     if (!button.classList.contains('alt')){
