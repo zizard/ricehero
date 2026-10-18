@@ -516,14 +516,18 @@ const SORTS = {
    borrowed, so which slot it sits in does not matter; a runner cannot be. A debuffer's cards are
    held to that only while its toggle is on: off, a debuffer is taken as buildable from other
    cards, and only its runner card has to be owned. Each list counts only while its own switch is
-   on. A team is hidden once Hide at's number of its runners cannot be built: 1 is every runner. */
+   on. A team is hidden once Hide at's number of its runners cannot be built, 1 being every
+   runner, and also once any cannot be built and the runners left are all debuffers. */
 const HIDE_AT = [1, 2, 3];
 const runnerBuildable = r =>
   (!state.runnerBansOn || !MISSING_RUNNERS.has(r.card))
   && (!state.cardBansOn || (r.style === 6 && !state.debuffBans)
       || r.sup.reduce((count, [id]) => count + (MISSING.has(id) ? 1 : 0), 0) <= 1);
-const buildable = team =>
-  team.runners.reduce((count, r) => count + (runnerBuildable(r) ? 0 : 1), 0) < state.hideAt;
+const buildable = team => {
+  const left = team.runners.filter(runnerBuildable);
+  const lost = team.runners.length - left.length;
+  return lost < state.hideAt && (lost === 0 || left.some(r => r.style !== 6));
+};
 
 /* The required runners: a team fields all of them, or under ANY at least one. With none required,
    or the box switched off, every team passes either way. */
