@@ -27,6 +27,8 @@ h2.sec{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:upperc
 .sechead h2.sec{margin:0}
 .sechead button{font-size:10px;font-weight:700;letter-spacing:.04em;line-height:14px;
   padding:1px 6px}
+.sechead select{font-size:10px;font-weight:700;letter-spacing:.04em;line-height:14px;
+  padding:1px 4px}
 /* Both words sit in the one place and only one is shown, so the button is the wider word's width
    whichever it says. */
 button.two{display:inline-grid}
@@ -336,6 +338,7 @@ table.teams{border-collapse:collapse;background:var(--panel);
         title="How many of a team's runners the bans leave unbuildable before the team is hidden">
         <option value="1">1 unbuildable</option><option value="2">2 unbuildable</option>
         <option value="3">3 unbuildable</option></select></label>
+      <button id="bestsort">Sort by best racer</button>
       <span class="ctl spacer" id="count"></span>
       <button class="two" id="reset"><span class="a">Reset</span><span class="b">Confirm</span></button>
     </div>
@@ -362,6 +365,11 @@ table.teams{border-collapse:collapse;background:var(--panel);
   <div><div class="sechead"><h2 class="sec">Banned support cards</h2>
       <button class="two" id="cbanon"><span class="a">ON</span><span class="b">OFF</span></button>
       <button id="debuffbans">Enforce on debuffers</button>
+      <select id="banlb"
+        title="A banned card counts only where the team's copy has at least this many diamonds">
+        <option value="0">0+ ◆</option><option value="1">1+ ◆</option>
+        <option value="2">2+ ◆</option><option value="3">3+ ◆</option>
+        <option value="4">4 ◆</option></select>
     </div><div class="box" id="missing"></div></div>
 </div>
 
@@ -450,7 +458,7 @@ const underCeilings = team => CEILINGS.every(([, key, of]) =>
   state[key] === null || team.runners.every(r => of(r) <= state[key]));
 // Everything the page keeps, as it is on a first visit and after Reset.
 const SETTINGS = () => ({sort: 'rate', debuffBans: false, noDebuff: false, maxSp: null,
-                         maxScore: null, hideAt: 1,
+                         maxScore: null, hideAt: 1, banLb: 0, bestSort: false,
                          need: [], needAny: false, needOn: true, runnerBansOn: true,
                          cardBansOn: true});
 const state = {...SETTINGS(), nq: '', drop: false, dropAt: 0, shown: PAGE, open: new Set()};
@@ -469,7 +477,7 @@ function remember(){
     missing: [...MISSING], missingRunners: [...MISSING_RUNNERS],
     need: state.need, needAny: state.needAny, sort: state.sort,
     debuffBans: state.debuffBans, noDebuff: state.noDebuff, maxSp: state.maxSp,
-    maxScore: state.maxScore, hideAt: state.hideAt,
+    maxScore: state.maxScore, hideAt: state.hideAt, banLb: state.banLb, bestSort: state.bestSort,
     needOn: state.needOn,
     runnerBansOn: state.runnerBansOn, cardBansOn: state.cardBansOn};
   try { localStorage.setItem(STORE, JSON.stringify({meetings: KEPT})); } catch {}
@@ -495,9 +503,11 @@ function enter(meeting){
   if (['rate'].includes(saved.sort)) state.sort = saved.sort;
   state.debuffBans = saved.debuffBans === true;
   state.noDebuff = saved.noDebuff === true;
+  state.bestSort = saved.bestSort === true;
   for (const [, key] of CEILINGS)
     state[key] = Number.isInteger(saved[key]) && saved[key] >= 0 ? saved[key] : null;
   if (HIDE_AT.includes(saved.hideAt)) state.hideAt = saved.hideAt;
+  if (BAN_LB.includes(saved.banLb)) state.banLb = saved.banLb;
   state.need = [...ids(saved.need)];
   state.needAny = saved.needAny === true;
   state.needOn = saved.needOn !== false;
@@ -508,7 +518,9 @@ function enter(meeting){
 /* ---- which teams, in what order -------------------------------------------------------------- */
 
 const SORTS = {
-  rate: (a, b) => b.rate - a.rate || b.n - a.n,
+  // Sort by best racer puts the best runner's own win rate ahead of the team's.
+  rate: (a, b) => (state.bestSort ? bestWins(b) / (b.n || 1) - bestWins(a) / (a.n || 1) : 0)
+    || b.rate - a.rate || b.n - a.n,
 };
 
 /* A runner the account can build: its card is one the account has, and its six support cards are
@@ -516,13 +528,16 @@ const SORTS = {
    borrowed, so which slot it sits in does not matter; a runner cannot be. A debuffer's cards are
    held to that only while its toggle is on: off, a debuffer is taken as buildable from other
    cards, and only its runner card has to be owned. Each list counts only while its own switch is
-   on. A team is hidden once Hide at's number of its runners cannot be built, 1 being every
+   on, and a banned card counts only where the team's copy has at least the diamonds its menu
+   asks for. A team is hidden once Hide at's number of its runners cannot be built, 1 being every
    runner, and also once any cannot be built and the runners left are all debuffers. */
 const HIDE_AT = [1, 2, 3];
+const BAN_LB = [0, 1, 2, 3, 4];
 const runnerBuildable = r =>
   (!state.runnerBansOn || !MISSING_RUNNERS.has(r.card))
   && (!state.cardBansOn || (r.style === 6 && !state.debuffBans)
-      || r.sup.reduce((count, [id]) => count + (MISSING.has(id) ? 1 : 0), 0) <= 1);
+      || r.sup.reduce((count, [id, lb]) =>
+           count + (MISSING.has(id) && lb >= state.banLb ? 1 : 0), 0) <= 1);
 const buildable = team => {
   const left = team.runners.filter(runnerBuildable);
   const lost = team.runners.length - left.length;
@@ -535,6 +550,11 @@ const needing = () => state.needOn && state.need.length > 0;
 const fields = team => !needing() || (state.needAny
   ? state.need.some(card => team.cards.has(card))
   : state.need.every(card => team.cards.has(card)));
+
+/* The most races any one runner of the team won, of its runners that are required while the box
+   is on and has any, of all three otherwise. A team the box lets through fields at least one. */
+const bestWins = team => Math.max(...team.runners.map((r, slot) =>
+  !needing() || state.need.includes(r.card) ? team.memberWins[slot] : 0));
 
 // Everything but the required runners: the bans, the debuffer toggle and the ceilings.
 const passes = team => buildable(team) && (!state.noDebuff || !team.debuff) && underCeilings(team);
@@ -878,7 +898,10 @@ function teamRow(team){
   return `<tr>
     <td><div class="trio">${team.runners.map((r, slot) =>
       memberCell(team, r, slot)).join('')}</div></td>
-    <td class="num rate"><div title="Won ${team.wins} of ${team.n} races">${pct1(team.rate)}%</div>
+    <td class="num rate">${state.bestSort ? `<div title="Its best ${needing() ? 'required ' : ''
+      }runner won ${bestWins(team)} of ${team.n} races">${pct1(team.n ? bestWins(team) / team.n
+      : 0)}%</div>` : ''}
+      <div title="Won ${team.wins} of ${team.n} races">${pct1(team.rate)}%</div>
       <div class="ci" title="95% range">${pct1(team.lower)}&ndash;${pct1(team.upper)}</div>
       <div class="ci" title="Races">${team.n.toLocaleString('en-US')}</div></td>
   </tr>`;
@@ -997,10 +1020,12 @@ function renderBar(){
   }
   $('debuffbans').classList.toggle('tog', state.debuffBans);
   $('nodebuff').classList.toggle('tog', state.noDebuff);
+  $('bestsort').classList.toggle('tog', state.bestSort);
   // Left alone while it is being typed in, so what is typed is never rewritten under the cursor.
   for (const [id, key] of CEILINGS)
     if (document.activeElement !== $(id)) $(id).value = state[key] ?? '';
   $('hideat').value = String(state.hideAt);
+  $('banlb').value = String(state.banLb);
   for (const side of $('needany').children)
     side.classList.toggle('tog', (side.dataset.any === '1') === state.needAny);
   for (const th of document.querySelectorAll('th[data-sort]'))
@@ -1120,12 +1145,13 @@ function bind(){
       renderTeams();
     });
   $('cm').addEventListener('change', e => choose(e.target.value));
-  $('hideat').addEventListener('change', e => {
-    state.hideAt = Number(e.target.value);
-    state.shown = PAGE;
-    remember();
-    renderTeams();
-  });
+  for (const [id, key] of [['hideat', 'hideAt'], ['banlb', 'banLb']])
+    $(id).addEventListener('change', e => {
+      state[key] = Number(e.target.value);
+      state.shown = PAGE;
+      remember();
+      renderTeams();
+    });
   $('reset').addEventListener('click', () => {
     const button = $('reset');
     if (!button.classList.contains('alt')){
@@ -1177,8 +1203,8 @@ function bind(){
     nq.blur();
     openDrop(false);
   });
-  for (const [id, key] of [['debuffbans', 'debuffBans'],
-                            ['nodebuff', 'noDebuff'], ...SWITCHES])
+  for (const [id, key] of [['debuffbans', 'debuffBans'], ['nodebuff', 'noDebuff'],
+                            ['bestsort', 'bestSort'], ...SWITCHES])
     $(id).addEventListener('click', () => {
       state[key] = !state[key];
       state.shown = PAGE;
